@@ -2,3 +2,4 @@ curl -fsSL https://raw.githubusercontent.com/TutorKidsDad/Autoinstall-scripts/ma
 chmod +x install.sh
 sudo ./install.sh
 
+
