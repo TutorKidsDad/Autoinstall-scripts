@@ -1,31 +1,38 @@
 #!/bin/bash
 
-# =====================================
-# Linux Mint Post-Install Script
-# =====================================
+# ==========================================
+# Linux Mint Post-Install Script (Resilient)
+# ==========================================
 
 LOGFILE="$HOME/mint-postinstall.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
-echo "====================================="
-echo " Linux Mint Post-Install Tool"
-echo " Log file: $LOGFILE"
-echo "====================================="
+set -e
+trap 'echo "❌ Script interrupted. Safe to rerun later."' INT
 
-# -------------------------------
+echo "=========================================="
+echo " Linux Mint Post-Install Tool"
+echo " Log: $LOGFILE"
+echo "=========================================="
+
+# ------------------------------------------
 # Safety checks
-# -------------------------------
+# ------------------------------------------
 
 if [ "$EUID" -ne 0 ]; then
-  echo "❌ Please run as root:"
+  echo "❌ Run as root:"
   echo "   sudo bash install.sh"
   exit 1
 fi
 
 if ! grep -qi "linux mint" /etc/os-release; then
-  echo "❌ This script is for Linux Mint only."
+  echo "❌ This script supports Linux Mint only."
   exit 1
 fi
+
+# ------------------------------------------
+# Helpers
+# ------------------------------------------
 
 pause() {
   read -rp "Press ENTER to continue or Ctrl+C to cancel..."
@@ -36,19 +43,48 @@ confirm() {
   [[ "$ans" =~ ^[Yy]$ ]]
 }
 
-pause
+check_net() {
+  ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1
+}
 
-# -------------------------------
-# Update & Upgrade
-# -------------------------------
+retry_cmd() {
+  local retries=3
+  local count=1
+  until "$@"; do
+    if [ "$count" -ge "$retries" ]; then
+      echo "❌ Failed after $retries attempts: $*"
+      return 1
+    fi
+    echo "🔁 Retry $count/$retries..."
+    count=$((count + 1))
+    sleep 3
+  done
+}
 
-if confirm "➡️ Update & upgrade system?"; then
-  apt update && apt upgrade -y
+ONLINE=true
+if ! check_net; then
+  ONLINE=false
+  echo "⚠️ No internet detected — entering OFFLINE-SKIP mode"
 fi
 
-# -------------------------------
+pause
+
+# ------------------------------------------
+# Update & Upgrade
+# ------------------------------------------
+
+if confirm "➡️ Update & upgrade system?"; then
+  if $ONLINE; then
+    retry_cmd apt update
+    retry_cmd apt upgrade -y
+  else
+    echo "⚠️ Skipped (offline)"
+  fi
+fi
+
+# ------------------------------------------
 # GRUB Silent Boot
-# -------------------------------
+# ------------------------------------------
 
 if confirm "➡️ Apply silent boot (GRUB) settings?"; then
   echo "📦 Backing up GRUB config..."
@@ -64,65 +100,81 @@ if confirm "➡️ Apply silent boot (GRUB) settings?"; then
   update-grub
 fi
 
-# -------------------------------
-# LibreOffice Cleanup
-# -------------------------------
+# ------------------------------------------
+# LibreOffice Removal
+# ------------------------------------------
 
 if confirm "➡️ Remove preinstalled LibreOffice (APT)?"; then
-  apt remove --purge libreoffice* -y
-  apt autoremove --purge -y
+  apt remove --purge libreoffice* -y || true
+  apt autoremove --purge -y || true
 fi
 
-# -------------------------------
+# ------------------------------------------
 # LibreOffice Latest (Official)
-# -------------------------------
+# ------------------------------------------
 
 if confirm "➡️ Install latest LibreOffice (official DEB)?"; then
-  TMP="/tmp/libreoffice"
-  mkdir -p "$TMP"
-  cd "$TMP"
+  if $ONLINE; then
+    TMP="/tmp/libreoffice"
+    mkdir -p "$TMP"
+    cd "$TMP"
 
-  wget -q --show-progress \
-  https://download.documentfoundation.org/libreoffice/stable/25.8.4/deb/x86_64/LibreOffice_25.8.4_Linux_x86-64_deb.tar.gz
+    retry_cmd wget --timeout=20 --tries=3 --show-progress \
+      https://download.documentfoundation.org/libreoffice/stable/25.8.4/deb/x86_64/LibreOffice_25.8.4_Linux_x86-64_deb.tar.gz
 
-  tar -xf LibreOffice_*.tar.gz
-  cd LibreOffice_*_Linux_x86-64_deb/DEBS
-  dpkg -i *.deb || apt -f install -y
+    tar -xf LibreOffice_*.tar.gz
+    cd LibreOffice_*_Linux_x86-64_deb/DEBS
+    dpkg -i *.deb || apt -f install -y
+  else
+    echo "⚠️ Skipped LibreOffice install (offline)"
+  fi
 fi
 
-# -------------------------------
-# Stacer (APT only)
-# -------------------------------
+# ------------------------------------------
+# Stacer (APT)
+# ------------------------------------------
 
 if confirm "➡️ Install Stacer (APT)?"; then
-  apt install stacer -y
+  if $ONLINE; then
+    retry_cmd apt install stacer -y
+  else
+    echo "⚠️ Skipped Stacer install (offline)"
+  fi
 fi
 
-# -------------------------------
+# ------------------------------------------
 # Flatpak + Flathub
-# -------------------------------
+# ------------------------------------------
 
 if confirm "➡️ Install Flatpak & Flathub?"; then
-  apt install flatpak -y
-  flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+  if $ONLINE; then
+    retry_cmd apt install flatpak -y
+    flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+  else
+    echo "⚠️ Skipped Flatpak setup (offline)"
+  fi
 fi
 
-# -------------------------------
+# ------------------------------------------
 # Flatpak Applications
-# -------------------------------
+# ------------------------------------------
 
 if confirm "➡️ Install apps via Flatpak?"; then
-  flatpak install -y flathub \
-    org.gnome.Boxes \
-    com.obsproject.Studio \
-    org.kde.kdenlive \
-    org.audacityteam.Audacity \
-    org.onlyoffice.desktopeditors
+  if $ONLINE; then
+    retry_cmd flatpak install -y flathub \
+      org.gnome.Boxes \
+      com.obsproject.Studio \
+      org.kde.kdenlive \
+      org.audacityteam.Audacity \
+      org.onlyoffice.desktopeditors
+  else
+    echo "⚠️ Skipped Flatpak apps (offline)"
+  fi
 fi
 
-echo "====================================="
-echo " ✅ Setup completed successfully!"
-echo " 📄 Log saved at:"
+echo "=========================================="
+echo " ✅ Setup complete!"
+echo " 📄 Log file:"
 echo "    $LOGFILE"
 echo " 🔁 Reboot recommended"
-echo "====================================="
+echo "=========================================="
