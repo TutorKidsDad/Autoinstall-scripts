@@ -112,14 +112,23 @@ remove_libreoffice() {
 
 install_libreoffice_latest() {
   $ONLINE || { SKIPPED+=("LibreOffice install (offline)"); return; }
+
   tmp=$(mktemp -d)
   cd "$tmp"
-  retry wget -q https://download.documentfoundation.org/libreoffice/stable/25.8.4/deb/x86_64/LibreOffice_25.8.4_Linux_x86-64_deb.tar.gz \
+  echo "📥 Downloading LibreOffice 25.8.4..."
+  
+  retry wget --tries=3 --timeout=20 https://download.documentfoundation.org/libreoffice/stable/25.8.4/deb/x86_64/LibreOffice_25.8.4_Linux_x86-64_deb.tar.gz \
     || { FAILED+=("LibreOffice download"); return; }
+
+  echo "📦 Extracting..."
   tar xf LibreOffice_*.tar.gz
-  dpkg -i LibreOffice_*/DEBS/*.deb \
-    && RAN+=("LibreOffice 25.8.4 installed") \
-    || FAILED+=("LibreOffice install")
+
+  echo "⚙ Installing LibreOffice DEBs..."
+  # Use apt to auto-resolve dependencies after dpkg
+  dpkg -i LibreOffice_*_Linux_x86-64_deb/DEBS/*.deb || apt -f install -y
+  RAN+=("LibreOffice 25.8.4 installed")
+
+  cd -
   rm -rf "$tmp"
 }
 
