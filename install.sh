@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# ===============================
+# =====================================
 # Linux Mint Post-Install Script
-# ===============================
+# =====================================
 
 LOGFILE="$HOME/mint-postinstall.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
-echo "=============================="
+echo "====================================="
 echo " Linux Mint Post-Install Tool"
 echo " Log file: $LOGFILE"
-echo "=============================="
+echo "====================================="
 
 # -------------------------------
 # Safety checks
@@ -23,25 +23,23 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 if ! grep -qi "linux mint" /etc/os-release; then
-  echo "❌ This script is optimized ONLY for Linux Mint."
+  echo "❌ This script is for Linux Mint only."
   exit 1
 fi
-
-echo "✅ Linux Mint detected"
 
 pause() {
   read -rp "Press ENTER to continue or Ctrl+C to cancel..."
 }
 
 confirm() {
-  read -rp "$1 [y/N]: " choice
-  [[ "$choice" =~ ^[Yy]$ ]]
+  read -rp "$1 [y/N]: " ans
+  [[ "$ans" =~ ^[Yy]$ ]]
 }
 
 pause
 
 # -------------------------------
-# System update
+# Update & Upgrade
 # -------------------------------
 
 if confirm "➡️ Update & upgrade system?"; then
@@ -49,10 +47,10 @@ if confirm "➡️ Update & upgrade system?"; then
 fi
 
 # -------------------------------
-# GRUB configuration
+# GRUB Silent Boot
 # -------------------------------
 
-if confirm "➡️ Apply silent boot GRUB configuration?"; then
+if confirm "➡️ Apply silent boot (GRUB) settings?"; then
   echo "📦 Backing up GRUB config..."
   cp /etc/default/grub /etc/default/grub.backup
 
@@ -67,7 +65,7 @@ if confirm "➡️ Apply silent boot GRUB configuration?"; then
 fi
 
 # -------------------------------
-# LibreOffice cleanup
+# LibreOffice Cleanup
 # -------------------------------
 
 if confirm "➡️ Remove preinstalled LibreOffice (APT)?"; then
@@ -76,10 +74,10 @@ if confirm "➡️ Remove preinstalled LibreOffice (APT)?"; then
 fi
 
 # -------------------------------
-# LibreOffice latest (official)
+# LibreOffice Latest (Official)
 # -------------------------------
 
-if confirm "➡️ Install latest LibreOffice (official DEB)"; then
+if confirm "➡️ Install latest LibreOffice (official DEB)?"; then
   TMP="/tmp/libreoffice"
   mkdir -p "$TMP"
   cd "$TMP"
@@ -93,32 +91,38 @@ if confirm "➡️ Install latest LibreOffice (official DEB)"; then
 fi
 
 # -------------------------------
-# Flatpak setup
+# Stacer (APT only)
 # -------------------------------
 
-if confirm "➡️ Install Flatpak + Flathub?"; then
+if confirm "➡️ Install Stacer (APT)?"; then
+  apt install stacer -y
+fi
+
+# -------------------------------
+# Flatpak + Flathub
+# -------------------------------
+
+if confirm "➡️ Install Flatpak & Flathub?"; then
   apt install flatpak -y
   flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 fi
 
 # -------------------------------
-# Flatpak applications
+# Flatpak Applications
 # -------------------------------
 
 if confirm "➡️ Install apps via Flatpak?"; then
   flatpak install -y flathub \
     org.gnome.Boxes \
     com.obsproject.Studio \
-    io.github.oguzhaninan.Stacer \
     org.kde.kdenlive \
     org.audacityteam.Audacity \
     org.onlyoffice.desktopeditors
 fi
 
-echo "=============================="
-echo " ✅ Setup complete!"
+echo "====================================="
+echo " ✅ Setup completed successfully!"
 echo " 📄 Log saved at:"
 echo "    $LOGFILE"
 echo " 🔁 Reboot recommended"
-echo "=============================="
-
+echo "====================================="
