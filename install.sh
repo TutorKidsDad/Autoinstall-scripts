@@ -22,16 +22,6 @@ for arg in "$@"; do
 done
 
 ### ================= UTILS ==================
-confirm() {
-  echo
-  if $AUTO; then
-    echo "✔ Auto-approved: $1"
-    return 0
-  fi
-  read -rp "➡️  $1 [y/N]: " ans
-  [[ "$ans" =~ ^[Yy]$ ]]
-}
-
 countdown() {
   echo
   echo "⏳ Auto-continue in $COUNTDOWN seconds (Ctrl+C to cancel)"
@@ -93,8 +83,7 @@ update_upgrade() {
 }
 
 configure_grub() {
-  echo "⚙ Configuring GRUB with optimized settings..."
-  
+  echo "⚙ Configuring GRUB..."
   cat > /etc/default/grub <<'EOF'
 GRUB_DEFAULT=0
 GRUB_TIMEOUT_STYLE=hidden
@@ -103,14 +92,8 @@ GRUB_RECORDFAIL_TIMEOUT=0
 GRUB_CMDLINE_LINUX_DEFAULT="quiet loglevel=0 vt.global_cursor_default=0"
 GRUB_CMDLINE_LINUX=""
 EOF
-
-  update-grub \
-    && RAN+=("GRUB optimized") \
-    || FAILED+=("GRUB config")
-  
-  echo "✔ GRUB configuration updated"
+  update-grub && RAN+=("GRUB optimized") || FAILED+=("GRUB config")
 }
-
 
 remove_libreoffice() {
   apt remove --purge libreoffice* -y
@@ -124,15 +107,13 @@ install_libreoffice_latest() {
   tmp=$(mktemp -d)
   cd "$tmp"
   echo "📥 Downloading LibreOffice 25.8.4..."
-  
-  retry wget --tries=3 --timeout=20 https://download.documentfoundation.org/libreoffice/stable/25.8.4/deb/x86_64/LibreOffice_25.8.4_Linux_x86-64_deb.tar.gz \
+  retry wget --timeout=20 https://download.documentfoundation.org/libreoffice/stable/25.8.4/deb/x86_64/LibreOffice_25.8.4_Linux_x86-64_deb.tar.gz \
     || { FAILED+=("LibreOffice download"); return; }
 
   echo "📦 Extracting..."
   tar xf LibreOffice_*.tar.gz
 
-  echo "⚙ Installing LibreOffice DEBs..."
-  # Use apt to auto-resolve dependencies after dpkg
+  echo "⚙ Installing LibreOffice..."
   dpkg -i LibreOffice_*_Linux_x86-64_deb/DEBS/*.deb || apt -f install -y
   RAN+=("LibreOffice 25.8.4 installed")
 
@@ -143,31 +124,59 @@ install_libreoffice_latest() {
 install_flatpak_apps() {
   $ONLINE || { SKIPPED+=("Flatpak apps (offline)"); return; }
 
+  echo
   echo "📦 Installing Flatpak applications"
+  echo "⏳ Large runtimes (1–3 GB). Network speed may fluctuate."
 
-  apt install -y flatpak
-  flatpak remote-add --if-not-exists flathub \
-    https://flathub.org/repo/flathub.flatpakrepo
+  apt install -y flatpak ca-certificates
+
+  # ---- SAFETY: ensure certs are fresh ----
+  update-ca-certificates
+
+  # ---- Check if flathub already exists ----
+  if flatpak remotes | grep -q flathub; then
+    echo "✔ Flathub already configured"
+  else
+    echo "➕ Adding Flathub remote"
+
+    # Retry repo add (SSL can fail temporarily)
+    if ! retry flatpak remote-add --if-not-exists flathub \
+      https://flathub.org/repo/flathub.flatpakrepo; then
+      FAILED+=("Flathub repo (SSL/network)")
+      echo "❌ Unable to add Flathub — skipping Flatpak apps"
+      return
+    fi
+  fi
+
+  # ---- PERFORMANCE & STABILITY ----
+  # ---- Disable deltas ONLY if supported (Flatpak ≥ 1.15) ----
+if flatpak config --help 2>/dev/null | grep -q disable-delta; then
+  echo "⚙ Disabling Flatpak delta downloads (supported)"
+  flatpak config --system --set disable-delta true
+else
+  echo "ℹ Flatpak delta control not supported on this version — skipping"
+fi
+
+  export G_MESSAGES_DEBUG=none
+  export FLATPAK_HTTP_TIMEOUT=300
+  export GIO_USE_PROXY_RESOLVER=0
 
   local USER_RUN="${SUDO_USER:-$USER}"
 
-  APPS=(
-    org.gnome.Boxes
-    com.obsproject.Studio
-    org.kde.kdenlive
-    org.audacityteam.Audacity
-    org.onlyoffice.desktopeditors
-  )
+  echo "⬇ Installing Flatpak apps (single transaction)"
 
-  for app in "${APPS[@]}"; do
-    echo "➡️ Installing $app"
-    if retry sudo -u "$USER_RUN" flatpak install -y flathub "$app"; then
-      RAN+=("$app (Flatpak)")
-    else
-      SKIPPED+=("$app (network/runtime error)")
-    fi
-  done
+  if sudo -u "$USER_RUN" flatpak install -y flathub \
+    org.gnome.Boxes \
+    com.obsproject.Studio \
+    org.kde.kdenlive \
+    org.audacityteam.Audacity \
+    org.onlyoffice.desktopeditors; then
+      RAN+=("Flatpak apps installed")
+  else
+      FAILED+=("Flatpak apps install")
+  fi
 }
+
 
 ### ================= MENU ===================
 
