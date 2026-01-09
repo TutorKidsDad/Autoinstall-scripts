@@ -24,7 +24,7 @@ done
 ### ================= UTILS ==================
 countdown() {
   echo
-  echo "⏳ Auto-continue in $COUNTDOWN seconds (Ctrl+C to cancel)"
+  echo "Auto-continue in $COUNTDOWN seconds (Ctrl+C to cancel)"
   for ((i=COUNTDOWN; i>0; i--)); do
     printf "\rStarting in %s..." "$i"
     sleep 1
@@ -39,7 +39,7 @@ network_ok() {
 retry() {
   for i in 1 2 3; do
     "$@" && return 0
-    echo "⚠️ Retry $i failed, retrying..."
+    echo "Retry $i failed, retrying..."
     sleep 4
   done
   return 1
@@ -53,12 +53,12 @@ echo " Log: $LOG"
 echo "=========================================="
 
 if [[ $EUID -ne 0 ]]; then
-  echo "❌ Run as root (sudo)"
+  echo "Run as root (sudo)"
   exit 1
 fi
 
 if ! grep -qi "linux mint" /etc/os-release; then
-  echo "❌ This script supports Linux Mint ONLY"
+  echo "This script supports Linux Mint ONLY"
   exit 1
 fi
 
@@ -83,7 +83,7 @@ update_upgrade() {
 }
 
 configure_grub() {
-  echo "⚙ Configuring GRUB..."
+  echo "Configuring GRUB..."
   cat > /etc/default/grub <<'EOF'
 GRUB_DEFAULT=0
 GRUB_TIMEOUT_STYLE=hidden
@@ -106,14 +106,14 @@ install_libreoffice_latest() {
 
   tmp=$(mktemp -d)
   cd "$tmp"
-  echo "📥 Downloading LibreOffice 25.8.4..."
+  echo "Downloading LibreOffice 25.8.4..."
   retry wget --timeout=20 https://download.documentfoundation.org/libreoffice/stable/25.8.4/deb/x86_64/LibreOffice_25.8.4_Linux_x86-64_deb.tar.gz \
     || { FAILED+=("LibreOffice download"); return; }
 
-  echo "📦 Extracting..."
+  echo "Extracting..."
   tar xf LibreOffice_*.tar.gz
 
-  echo "⚙ Installing LibreOffice..."
+  echo "Installing LibreOffice..."
   dpkg -i LibreOffice_*_Linux_x86-64_deb/DEBS/*.deb || apt -f install -y
   RAN+=("LibreOffice 25.8.4 installed")
 
@@ -125,8 +125,8 @@ install_flatpak_apps() {
   $ONLINE || { SKIPPED+=("Flatpak apps (offline)"); return; }
 
   echo
-  echo "📦 Installing Flatpak applications"
-  echo "⏳ Large runtimes (1–3 GB). Network speed may fluctuate."
+  echo "Installing Flatpak applications"
+  echo "Large runtimes (1–3 GB). Network speed may fluctuate."
 
   apt install -y flatpak ca-certificates
 
@@ -135,15 +135,15 @@ install_flatpak_apps() {
 
   # ---- Check if flathub already exists ----
   if flatpak remotes | grep -q flathub; then
-    echo "✔ Flathub already configured"
+    echo "Flathub already configured"
   else
-    echo "➕ Adding Flathub remote"
+    echo "Adding Flathub remote"
 
     # Retry repo add (SSL can fail temporarily)
     if ! retry flatpak remote-add --if-not-exists flathub \
       https://flathub.org/repo/flathub.flatpakrepo; then
       FAILED+=("Flathub repo (SSL/network)")
-      echo "❌ Unable to add Flathub — skipping Flatpak apps"
+      echo "Unable to add Flathub — skipping Flatpak apps"
       return
     fi
   fi
@@ -151,10 +151,10 @@ install_flatpak_apps() {
   # ---- PERFORMANCE & STABILITY ----
   # ---- Disable deltas ONLY if supported (Flatpak ≥ 1.15) ----
 if flatpak config --help 2>/dev/null | grep -q disable-delta; then
-  echo "⚙ Disabling Flatpak delta downloads (supported)"
+  echo "Disabling Flatpak delta downloads (supported)"
   flatpak config --system --set disable-delta true
 else
-  echo "ℹ Flatpak delta control not supported on this version — skipping"
+  echo "Flatpak delta control not supported on this version — skipping"
 fi
 
   export G_MESSAGES_DEBUG=none
@@ -163,7 +163,7 @@ fi
 
   local USER_RUN="${SUDO_USER:-$USER}"
 
-  echo "⬇ Installing Flatpak apps (single transaction)"
+  echo "Installing Flatpak apps (single transaction)"
 
   if sudo -u "$USER_RUN" flatpak install -y flathub \
     org.gnome.Boxes \
@@ -222,14 +222,14 @@ fi
 
 echo
 echo "=========================================="
-echo " ✅ Setup complete!"
+echo " Setup complete!"
 echo "=========================================="
 
-[[ ${#RAN[@]} -gt 0 ]] && echo "✔ Completed:" && printf "  - %s\n" "${RAN[@]}"
-[[ ${#SKIPPED[@]} -gt 0 ]] && echo "⚠ Skipped:" && printf "  - %s\n" "${SKIPPED[@]}"
-[[ ${#FAILED[@]} -gt 0 ]] && echo "❌ Failed:" && printf "  - %s\n" "${FAILED[@]}"
+[[ ${#RAN[@]} -gt 0 ]] && echo "Completed:" && printf "  - %s\n" "${RAN[@]}"
+[[ ${#SKIPPED[@]} -gt 0 ]] && echo "Skipped:" && printf "  - %s\n" "${SKIPPED[@]}"
+[[ ${#FAILED[@]} -gt 0 ]] && echo "Failed:" && printf "  - %s\n" "${FAILED[@]}"
 
 echo
 echo "📄 Log file: $LOG"
-echo "🔁 Reboot recommended"
+echo "Reboot recommended"
 echo "=========================================="
