@@ -129,35 +129,23 @@ install_flatpak_apps() {
   echo "Large runtimes (1–3 GB). Network speed may fluctuate."
 
   apt install -y flatpak ca-certificates
-
-  # ---- SAFETY: ensure certs are fresh ----
   update-ca-certificates
 
-  # ---- Check if flathub already exists ----
   if flatpak remotes | grep -q flathub; then
     echo "Flathub already configured"
   else
     echo "Adding Flathub remote"
-
-    # Retry repo add (SSL can fail temporarily)
     if ! retry flatpak remote-add --if-not-exists flathub \
       https://flathub.org/repo/flathub.flatpakrepo; then
       FAILED+=("Flathub repo (SSL/network)")
-      echo "Unable to add Flathub — skipping Flatpak apps"
       return
     fi
   fi
 
-  # ---- PERFORMANCE & STABILITY ----
-  # ---- Disable deltas ONLY if supported (Flatpak ≥ 1.15) ----
-if flatpak config --help 2>/dev/null | grep -q disable-delta; then
-  echo "Disabling Flatpak delta downloads (supported)"
-  flatpak config --system --set disable-delta true
-else
-  echo "Flatpak delta control not supported on this version — skipping"
-fi
+  if flatpak config --help 2>/dev/null | grep -q disable-delta; then
+    flatpak config --system --set disable-delta true
+  fi
 
-  export G_MESSAGES_DEBUG=none
   export FLATPAK_HTTP_TIMEOUT=300
   export GIO_USE_PROXY_RESOLVER=0
 
@@ -168,7 +156,7 @@ fi
   if sudo -u "$USER_RUN" flatpak install -y flathub \
     org.gnome.Boxes \
     com.obsproject.Studio \
-    org.kde.kdenlive \
+    org.shotcut.Shotcut \
     org.audacityteam.Audacity \
     org.onlyoffice.desktopeditors; then
       RAN+=("Flatpak apps installed")
@@ -176,7 +164,6 @@ fi
       FAILED+=("Flatpak apps install")
   fi
 }
-
 
 ### ================= MENU ===================
 
@@ -186,7 +173,7 @@ show_menu() {
   echo "2) Optimize GRUB (hidden boot)"
   echo "3) Remove LibreOffice"
   echo "4) Install LibreOffice 25.8.4"
-  echo "5) Install Flatpak apps (Boxes, OBS, Kdenlive, Audacity, ONLYOFFICE)"
+  echo "5) Install Flatpak apps (Boxes, OBS, Shotcut, Audacity, ONLYOFFICE)"
   echo "6) Run EVERYTHING"
   echo "0) Exit"
 }
